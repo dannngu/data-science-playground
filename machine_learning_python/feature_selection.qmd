@@ -1,0 +1,482 @@
+---
+jupyter: python3
+---
+
+
+
+@author: Daniel Ramirez Guitron
+
+Date: 19/04/2025
+
+Linkdin: https://www.linkedin.com/in/danielguitron/
+
+Github: https://github.com/dannngu
+
+E-mail: contactguitron@gmail.com
+
+# 📄**Feature selection**
+
+--- 
+
+
+## Read the data
+
+```{python}
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+
+from seaborn import swarmplot
+```
+
+```{python}
+from sklearn.datasets import load_wine
+%matplotlib inline
+```
+
+```{python}
+plt.rcParams["figure.figsize"] = (9,6)
+```
+
+
+```{python}
+#| colab: {base_uri: https://localhost:8080/, height: 226}
+wine_data = load_wine()
+
+wine_df = pd.DataFrame(
+    data=wine_data.data,
+    columns=wine_data.feature_names
+    )
+
+wine_df['target'] = wine_data.target
+
+wine_df.head()
+```
+
+```{python}
+#| colab: {base_uri: https://localhost:8080/, height: 666}
+data_to_plot = pd.melt(
+    wine_df[['alcohol', 'malic_acid', 'alcalinity_of_ash', 'target']],
+    id_vars='target',
+    var_name='features',
+    value_name='value'
+)
+
+swarmplot(data=data_to_plot, x='features', y='value', hue='target');
+```
+
+**Observations**
+
+- ``
+
+```{python}
+#| colab: {base_uri: https://localhost:8080/, height: 210}
+wine_df['target'].value_counts()
+```
+
+```{python}
+#| colab: {base_uri: https://localhost:8080/, height: 607}
+fig, ax = plt.subplots()
+
+x = [0,1,2]
+y = [59, 71, 48]
+
+ax.bar(x, y, width=0.2)
+ax.set_xlabel('Category')
+ax.set_ylabel('Count')
+ax.set_title('Wine Dataset')
+ax.set_xticks([0,1,2])
+ax.set_xticklabels([0,1,2], fontsize=12)
+
+
+for index, value in enumerate(y):
+    ax.text(x=index, y=value+1, s=f'{value}', ha='center')
+
+plt.tight_layout()
+plt.show()
+```
+
+## Train/test split
+
+
+```{python}
+#| colab: {base_uri: https://localhost:8080/}
+from sklearn.model_selection import train_test_split
+
+X = wine_df.drop('target', axis=1)
+y = wine_df['target']
+
+X_train, X_test, y_train, y_test = train_test_split(
+    X, y,
+    test_size=0.3,
+    shuffle=True,
+    stratify=y, # Keep the same freq between Train/test according to the (target)
+    random_state=42,
+)
+
+#
+print(f'[+] Train size: {X_train.shape[0]}')
+print(f'[+] Test size: {X_test.shape[0]}')
+```
+
+## Baseline Model: Gradient Boosting Classifier with all features
+
+```{python}
+#| colab: {base_uri: https://localhost:8080/}
+from sklearn.ensemble import GradientBoostingClassifier
+from sklearn.metrics import f1_score
+
+# Initialize classifier
+gbc = GradientBoostingClassifier(max_depth=5, random_state=42)
+
+# Train classifier using all features
+gbc.fit(X_train, y_train)
+
+# Make predictions
+preds = gbc.predict(X_test)
+
+# Evaluate the model using the F1-score
+# Our classes don't have the same freq so "wighted" according to the fre
+# of each class
+f1_score_all = round(f1_score(y_test, preds, average='weighted'), 3)
+
+print(f'[+] Baseline F1-score: {f1_score_all}')
+```
+
+**Observations**
+
+- We reach an score of **0.908**, so this is the score to beat.
+
+## Feature selection techniques
+
+
+### Variance Thereshold
+
+*Variance is a measure of spread from the mean.*
+
+if the varinace is 0, then we have a feature with constant value
+
+👎 if a feature has a variance of 0, then it is likely not predictive.
+for example it the samples are liquid, gas, or solid. Well assuming that the any wine is liquid this definitley is not helping to predit or categorize the wines.
+
+This is in some sence that is a naive method, beacuse your only seeing how is the spread, but not how much exaclty.
+
+```{python}
+X_train_v1, X_test_v1, y_train_v1, y_test_v1 = X_train.copy(), X_test.copy(), y_train.copy(), y_test.copy()
+```
+
+```{python}
+#| colab: {base_uri: https://localhost:8080/, height: 492}
+# Calcualte the variance of each feature
+X_train_v1.var(axis=0).sort_values(ascending=False) # Soritng by the bigger variance
+```
+
+Thi is enough to discard varibles?
+
+- No, beacuse the feautes are not in the same scale, the varinace are not comprable. If your going to compare variances you need to have the same scale
+
+```{python}
+# Scaling the data
+from sklearn.preprocessing import MinMaxScaler
+
+scaler = MinMaxScaler()
+scaled_X_train_v1 = scaler.fit_transform(X_train_v1)
+```
+
+By doing this we are going to loose some infomration. in this case we use MinMaxScaler becasue no one of the features are equal or less than 0.
+
+```{python}
+#| colab: {base_uri: https://localhost:8080/, height: 607}
+fig, ax = plt.subplots()
+
+x = X.columns
+y = scaled_X_train_v1.var(axis=0)
+
+ax.bar(x, y, width=0.2)
+ax.set_xlabel('Features')
+ax.set_ylabel('Variance')
+ax.set_ylim(0, 0.1)
+ax.set_title('Variance selected variables')
+ax.tick_params(rotation=60)
+
+for index, value in enumerate(y):
+    ax.text(x=index, y=value+0.001, s=f'{value:.3f}', ha='center')
+
+plt.tight_layout()
+plt.show()
+```
+
+```{python}
+#| colab: {base_uri: https://localhost:8080/}
+# Keeping the variables above 0.033 variance
+variance_mask = scaled_X_train_v1.var(axis=0) > 0.033 # Calculate the mask for feature selection
+
+# Select features based on variance threshold
+var_sel_mask = X_train_v1.columns[variance_mask]
+
+# Update training and testing sets with selected features
+sel_X_train_v1 = X_train_v1[var_sel_mask]
+sel_X_test_v1 = X_test_v1[var_sel_mask]
+print(f'[+] Number of selected features: {sel_X_train_v1.shape[1]}')
+
+# Fit the model with the selected varaibles
+gbc.fit(sel_X_train_v1, y_train_v1)
+
+# Make predictions
+var_preds = gbc.predict(sel_X_test_v1)
+
+# Evaluate the model using the F1-score
+f1_score_var = round(f1_score(y_test_v1, var_preds, average='weighted'), 3)
+
+print(f'[+] Variance F1-score: {f1_score_var}')
+```
+
+```{python}
+#| colab: {base_uri: https://localhost:8080/, height: 607}
+fig, ax = plt.subplots()
+
+x = ['All features', 'Variance threshold']
+y = [f1_score_all, f1_score_var]
+
+ax.bar(x, y, width=0.2)
+ax.set_xlabel('Feature selection method')
+ax.set_ylabel('F1-score (weighted)')
+ax.set_ylim(0, 1.2)
+
+for index, value in enumerate(y):
+    ax.text(x=index, y=value+0.01, s=f'{value}', ha='center')
+
+plt.tight_layout()
+plt.show()
+```
+
+**Observations**
+
+- By droping the vaiables with the lowest variance, we got an improvement in the model.
+
+## Filter Method: K-beast features method
+
+
+Use a measure of importance to select the top **k** features
+
+
+```{python}
+X_train_v2, X_test_v2, y_train_v2, y_test_v2 = X_train.copy(), X_test.copy(), y_train.copy(), y_test.copy()
+```
+
+Beacuse this is a small dataset we can try to see all the imortance of of the features but in larger datasets wthis is not recommended. From 1 just varible to all the 13 varibles in this dataset.
+
+```{python}
+from sklearn.feature_selection import SelectKBest, mutual_info_classif
+
+# List to safe with num(k) of features is the best
+f1_score_list = []
+
+for k in range(1, 14): # [1: feature at least to 13: features]
+  selector = SelectKBest(mutual_info_classif, k=k)
+  selector.fit(X_train_v2, y_train_v2)
+
+  sel_X_train_v2 = selector.transform(X_train_v2)
+  sel_X_test_v1 = selector.transform(X_test_v2)
+
+  # Fit the model and train it
+  gbc.fit(sel_X_train_v2, y_train_v2)
+  kbest_preds = gbc.predict(sel_X_test_v1)
+
+  # Calculating the F1_score and appending it to the list
+  f1_score_kbest = round(f1_score(y_test_v2, kbest_preds, average='weighted'), 3)
+  f1_score_list.append(f1_score_kbest)
+```
+
+```{python}
+#| colab: {base_uri: https://localhost:8080/, height: 607}
+fig, ax = plt.subplots()
+
+x = np.arange(1, 14)
+y = f1_score_list
+
+ax.bar(x, y, width=0.2)
+ax.set_xlabel('Number of features selected using mutual information')
+ax.set_ylabel('F1-score (weighted)')
+ax.set_ylim(0, 1.2)
+ax.set_xticks(np.arange(1, 14))
+ax.set_xticklabels(np.arange(1, 14), fontsize=12)
+
+for index, value in enumerate(y):
+    ax.text(x=index, y=value+0.01, s=f'{value}', ha='center')
+
+plt.tight_layout()
+plt.show()
+```
+
+**Observations**
+
+- We can see that just using 3 features we got the best f1_score() and it don't change until the 7 feature, also we have a better perfom using just 2 varibles than all the 13.
+
+Simpler model is a better model
+
+Now let's look for what a those 3 features that are actually selected
+
+```{python}
+#| colab: {base_uri: https://localhost:8080/}
+selector = SelectKBest(mutual_info_classif, k=3) # To select the 3 features
+selector.fit(X_train_v2, y_train_v2)
+
+selected_features_mask = selector.get_support() # Get the best features
+selected_features = X_train_v2.columns[selected_features_mask] # Filter the columns we get by the mask
+
+print(f'[+] Selected features: {selected_features}')
+```
+
+**Observations**
+
+- We can oberve that the varibales that match of importance is `proline`. But aslo the other 2 selected are also important in the variance method, so that is a good sight.
+
+## Wrapper Method: Recursive feature elimination (RFE)
+
+
+A wrapper method is the one that uses the model to calculate the feature importance
+
+🚨Must use a model that has a way of calcultating fearure importance
+- 🌳(tree-based model)
+
+```{python}
+X_train_v3, X_test_v3, y_train_v3, y_test_v3 = X_train.copy(), X_test.copy(), y_train.copy(), y_test.copy()
+```
+
+```{python}
+from sklearn.feature_selection import RFE
+
+# List to safe with num(k) of features is the best
+rfe_f1_score_list = []
+
+for k in range(1, 14): # [1: feature at least to 13: features]
+  RFE_selector = RFE(estimator=gbc, n_features_to_select=k, step=1) # step num of vars you want to delete at time.
+  RFE_selector.fit(X_train_v3, y_train_v3)
+
+  sel_X_train_v3 = RFE_selector.transform(X_train_v3)
+  sel_X_test_v3 = RFE_selector.transform(X_test_v3)
+
+  # Fit the model and make the predicts
+  gbc.fit(sel_X_train_v3, y_train_v3)
+  RFE_preds = gbc.predict(sel_X_test_v3)
+
+  # Calucalte and evaluate the model with f1_score
+  f1_score_RFE = round(f1_score(y_test_v3, RFE_preds, average='weighted'), 3)
+  rfe_f1_score_list.append(f1_score_RFE)
+```
+
+```{python}
+#| colab: {base_uri: https://localhost:8080/, height: 607}
+fix, ax = plt.subplots()
+
+x = np.arange(1, 14)
+y = rfe_f1_score_list
+
+ax.bar(x, y, width=0.2)
+ax.set_xlabel('Number of features selected using RFE')
+ax.set_ylabel('F1-score (weighted)')
+ax.set_ylim(0, 1.2)
+ax.set_xticks(np.arange(1, 14))
+ax.set_xticklabels(np.arange(1, 14), fontsize=12)
+
+for index, value in enumerate(y):
+    ax.text(x=index, y=value+0.01, s=f'{value}', ha='center')
+
+plt.tight_layout()
+plt.show()
+```
+
+**Observations**
+
+- By using 2 features we get a perfect classifier, this on the test dataset, then 3 we get a very similiar that using k-selector.
+
+## Boruta
+
+🤖 Take the human out!
+
+A feature selection algorithm wher we do not need to set a subjective threshold.
+
+1. Create shadow features: randomly shuffled version of each feature
+2. Compute the imprtance of each shadow feature - the highest score becomes our threshold
+3. If the importance of the original feature is higher than the threshold - keep (otherwise, discard)
+
+```{python}
+X_train_v4, X_test_v4, y_train_v4, y_test_v4 = X_train.copy(), X_test.copy(), y_train.copy(), y_test.copy()
+```
+
+
+<!-- !TODO: Just use this line of code if you are in google colab -->
+<!-- ```{python}
+#| colab: {base_uri: https://localhost:8080/}
+!pip install boruta
+``` -->
+
+```{python}
+from boruta import BorutaPy
+
+# Initialize Boruta
+boruta_selector = BorutaPy(
+    estimator=gbc,
+    # n_estimators='auto',
+    # max_iter=100,
+    # verbose=2,
+    random_state=42,
+)
+
+# Boruta doesn't work with DataFrames
+# boruta_selector.fit(X_train_v4.values, y_train_v4.values.revel())
+boruta_selector.fit(np.array(X_train_v4), np.array(y_train_v4))
+
+sel_X_train_v4 = boruta_selector.transform(X_train_v4.values)
+sel_X_test_v4 = boruta_selector.transform(X_test_v4.values)
+
+# Fit the model
+gbc.fit(sel_X_train_v4, y_train_v4)
+boruta_preds = gbc.predict(sel_X_test_v4)
+
+# Evaluate the model
+f1_score_boruta = round(f1_score(y_test_v4, boruta_preds, average='weighted'), 3)
+```
+
+```{python}
+#| colab: {base_uri: https://localhost:8080/}
+selected_features_mask = boruta_selector.support_ # Get the best features
+selected_features = X_train_v4.columns[selected_features_mask] # Filter the columns we get by the mask
+selected_features
+```
+
+```{python}
+#| colab: {base_uri: https://localhost:8080/, height: 607}
+import matplotlib.cm as cm
+
+fig, ax = plt.subplots()
+
+# Get colors from the viridis colormap
+num_bars = len(x)
+colors = cm.viridis(np.linspace(0, 1, num_bars))
+
+x = ['All features (13)', 'Variance threshold (10)', 'Filter - MI (3)', 'RFE (3)', 'Boruta (9)']
+y = [f1_score_all, f1_score_var, f1_score_kbest, f1_score_RFE, f1_score_boruta]
+
+ax.bar(x, y, width=0.2, color=colors)
+ax.set_xlabel('Feature selection method')
+ax.set_ylabel('F1-score (weighted)')
+ax.set_ylim(0, 1.2)
+
+for index, value in enumerate(y):
+    ax.text(x=index, y=value+0.01, s=f'{value}', ha='center')
+
+plt.tight_layout()
+plt.show()
+```
+
+**Observations**
+
+- Best method: Boruta is the best method in this case.
+
+## Final Conclusions 
+
+What we can see is in this way we can select features based in a better information of which ones to keep instead of our interpretation. But using different feature selecors will provide to us different result of the features, so we can compare them by the metrics we are using to evaluate the model and also looking for patterns of the features that are constanlly selected by the methods.
+

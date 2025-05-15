@@ -1,0 +1,45 @@
+# Temporal files
+*.log
+*.aux
+*.out
+
+# Virtual enviroments
+venv/
+.env/
+
+# local configuration
+.quarto/
+.DS_Store
+
+
+# Quarto output files
+*.html
+*.pdf
+*.docx
+
+# Temporary files
+*.log
+*.aux
+*.out
+
+# Quarto cache and config
+.quarto/
+.quarto-log/
+
+# Python virtual environments
+venv/
+.env/
+
+# System files
+.DS_Store
+Thumbs.db
+
+
+# Quarto output files
+*.html
+*.pdf
+*.docx
+
+# Files to avoid commit
+figure-html/
+libs/
