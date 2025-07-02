@@ -48,7 +48,7 @@ from collections import Counter
 import requests
 ```
 
-2. **Download the book "Don Quijote de la Mancha"**
+1. **Download the book "Dracula"**🧛
 
 ```{python}
 url = "https://gutenberg.org/files/345/345-0.txt"
