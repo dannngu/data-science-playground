@@ -1,0 +1,142 @@
+---
+jupyter: python3
+---
+
+
+@author: Daniel Ramirez Guitron
+
+Date: 02/07/2025
+
+Linkdin: https://www.linkedin.com/in/danielguitron/
+
+Github: https://github.com/dannngu
+
+E-mail: contactguitron@gmail.com
+
+
+# Natural Language Processing with Python - N-Grams
+
+
+When we are analyzing a text is crucial to identify the **words** that are **relevant**. So we can assume that a word is more relevant if they appear more frequently in a corpus.
+
+But not all important concept can be defined by a single word. E.g (Artificial) word in a text, if we identify that this word is commonly used as (Artificial Intelligence) We have a systematic unity, which apport context to the analysis.
+
+
+## What are N-Grams?
+Basically is a sequence of **N-words**. Where the length of **N** have different names: 
+
+- 1-gram: Unigram ("Van")
+- 2-gram: Bigram ("Van" "Helsing")
+- 3-gram: Trigram ("Temerous Van Helsing"), ("Senior Van Helsing")
+
+>[!Note] The relevance that we can assign a n-gram is because how much it repeats in a corpus (text) and the words are relevant if they are rich semantically.
+
+- ✅Relevant words: ("relevance", "majestic", "people")
+- ❌Irrelevant words: ("the", who, ",", "are")
+
+
+## How to calculate it using Python?
+
+1. **Import the modules**
+
+```{python}
+import nltk
+from nltk.util import ngrams  # bigrams, trigrams
+from nltk.tokenize import word_tokenize
+from nltk.corpus import stopwords
+from collections import Counter
+import requests
+```
+
+2. **Download the book "Don Quijote de la Mancha"**
+
+```{python}
+url = "https://gutenberg.org/files/345/345-0.txt"
+book = requests.get(url).text.lower()
+print(book[4000:5000])
+```
+
+**Obervation**:
+
+*  We can observate that we have a lot of irrelevant text
+
+
+## Preprocessing of the corpus text
+
+1. **Tokenization - Convert Text to a List of Words**
+
+```{python}
+nltk.download("punkt_tab")
+tokens = word_tokenize(book, language="english")
+tokens[1000:1010]
+```
+
+**Observation**: 
+
+- We have irrelevant words like (“wallachs”, “,”, “who”, “are”, “the”)
+
+> [!NOTE] this irrelevant words are called **stopwords**
+
+
+2. **Stopwords - Irrelevant Words**
+
+```{python}
+nltk.download("stopwords")
+common_words = set(stopwords.words("english"))
+list(common_words)[-10:]
+```
+
+**Observation**:
+
+- We can see the common words used in English by using `nltk.download("stopwords")` and set the language of our preference.
+
+3. **Remove Words With Irrelevant Meaning** 
+
+```{python}
+words = []
+for word in tokens:
+    if word.isalpha() and word not in common_words:
+        words.append(word)
+
+words[1000:1010]
+```
+
+**Observation**:
+
+- We get the relevant words once we remove the characters or stopwords. This is sematicaly more richful.
+
+
+## Extract Frequent N-grams
+
+1. **E.g - Bigrams**
+
+```{python}
+bigrams = list(ngrams(words, n=2))
+
+# Count the frequency of n-grams
+counts = Counter(bigrams)
+
+# N-grams with more frequency
+print(f"\n---The top 5 frequently n-grams:---\n")
+for ngram, frequency in counts.most_common(n=5):
+    print(frequency, ngram)
+
+```
+
+2. **E.g - Trigrams**
+```{python}
+trigrams = list(ngrams(words, n=3))
+
+# Count the frequency of n-grams
+counts = Counter(trigrams)
+
+# N-grams with more frequency
+print(f"\n---The top 5 frequently n-grams:---\n")
+for ngram, frequency in counts.most_common(n=5):
+    print(frequency, ngram)
+
+```
+
+**Observation**
+
+- Now we can see the difference between frequently **bigrams** and **trigrams** and the number of times they appear in the book "Dracula"🧛.
